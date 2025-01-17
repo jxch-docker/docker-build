@@ -1,0 +1,6 @@
+services:
+  elasticsearch-curator:
+    image: jxch/elasticsearch-curator:8.0.17
+    volumes:
+      - ./actions.yml:/app/actions.yml
+      - ./config.yml:/app/config.yml
