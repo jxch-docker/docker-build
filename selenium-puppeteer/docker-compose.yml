@@ -1,0 +1,5 @@
+services:
+  selenium-puppeteer:
+    image: jxch/selenium-puppeteer
+    ports:
+      - "5000:5000"
