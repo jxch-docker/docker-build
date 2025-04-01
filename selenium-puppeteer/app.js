@@ -28,17 +28,6 @@ async function initializeBrowser() {
 async function generatePdf(url, outputFile, format = 'A4') {
     const browser = await initializeBrowser();
     const page = await browser.newPage();
-
-    // 允许加载图片
-    await page.setRequestInterception(true);
-    page.on('request', (request) => {
-        if (request.resourceType() === 'image') {
-            request.continue();  // 继续加载图片
-        } else {
-            request.continue();  // 继续加载其他资源
-        }
-    });
-
     await page.goto(url, { waitUntil: 'networkidle0', timeout: 120000 });
     await page.pdf({ path: outputFile, format: format });
     await page.close(); // 页面关闭，但浏览器实例不关闭
