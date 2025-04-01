@@ -11,7 +11,7 @@ RUN apk add --no-cache \
     && npm install puppeteer --save \
     && npm install express body-parser --save
 
-RUN apk add --no-cache fontconfig ttf-dejavu ttf-droid ttf-freefont wqy-zenhei
+RUN apk add --no-cache fontconfig ttf-dejavu ttf-droid ttf-freefont wqy-zenhei && npm install uuid --save
 
 COPY . /app
 

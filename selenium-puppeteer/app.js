@@ -3,6 +3,7 @@ const bodyParser = require('body-parser');
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
+const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 app.use(bodyParser.json());
@@ -41,7 +42,7 @@ app.post('/pdf', async (req, res) => {
         return res.status(400).json({ error: 'Missing URL' });
     }
 
-    const outputFile = path.join('/tmp', `output_${Date.now()}.pdf`);
+    const outputFile = path.join('/tmp', `output_${uuidv4()}.pdf`);
 
     try {
         await generatePdf(url, outputFile, format);

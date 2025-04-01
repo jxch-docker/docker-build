@@ -58,7 +58,6 @@
       background-color: #ccc;
       cursor: not-allowed;
     }
-    /* Adjust visibility of status messages */
     .loading, .error, .success {
       text-align: center;
       margin-top: 20px;
@@ -88,7 +87,7 @@
 
     <div id="result"></div>
     <div id="loading" class="loading">
-      <p>Generating PDF, please wait...</p>
+      <p>Generating PDF, please wait... <span id="timer">0s</span></p>
     </div>
   </div>
 
@@ -97,9 +96,20 @@
     const resultDiv = document.getElementById('result');
     const loadingDiv = document.getElementById('loading');
     const submitButton = form.querySelector('button');
+    const timerSpan = document.getElementById('timer');
+
+    let timerInterval;
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
+      
+      // Clear the previous timer interval if it exists
+      if (timerInterval) {
+        clearInterval(timerInterval);
+      }
+
+      // Reset the timer display to 0s
+      timerSpan.textContent = '0s';
       
       const url = document.getElementById('url').value;
       const format = document.getElementById('format').value;
@@ -109,6 +119,14 @@
       submitButton.innerText = 'Generating...';
       resultDiv.innerHTML = '';
       loadingDiv.classList.add('show'); // Show loading
+
+      const startTime = Date.now(); // Start timer
+
+      // Update the timer every second
+      timerInterval = setInterval(() => {
+        const elapsedTime = Math.floor((Date.now() - startTime) / 1000);
+        timerSpan.textContent = `${elapsedTime}s`;
+      }, 1000);
 
       try {
         const response = await fetch('/pdf', {
@@ -131,6 +149,13 @@
       } catch (error) {
         resultDiv.innerHTML = `<p class="error show">Error: ${error.message}</p>`;
       } finally {
+        // Stop the timer and clear the interval
+        clearInterval(timerInterval);
+
+        // Show total time spent
+        const totalTime = Math.floor((Date.now() - startTime) / 1000);
+        resultDiv.innerHTML += `<p class="success show">Total time: ${totalTime}s</p>`;
+        
         // Restore button state and hide loading indicator
         submitButton.disabled = false;
         submitButton.innerText = 'Generate PDF';
