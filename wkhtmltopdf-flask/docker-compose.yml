@@ -1,0 +1,5 @@
+services:
+  wkhtmltopdf-flask:
+    image: jxch/wkhtmltopdf-flask
+    ports:
+      - "5000:5000"
