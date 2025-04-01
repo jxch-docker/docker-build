@@ -13,7 +13,7 @@ RUN apk add --no-cache \
 
 RUN apk add --no-cache fontconfig ttf-dejavu ttf-droid ttf-freefont wqy-zenhei
 
-COPY app.js /app/app.js
+COPY . /app
 
 ENV PUPPETEER_EXECUTABLE_PATH="/usr/bin/chromium"
 

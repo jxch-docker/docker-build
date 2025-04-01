@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Generator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f7fa;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    .container {
+      background-color: #ffffff;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      width: 100%;
+      max-width: 500px;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    label {
+      font-weight: bold;
+      margin-top: 15px;
+      display: block;
+    }
+    input, select {
+      width: 100%;
+      padding: 10px;
+      margin-top: 5px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      margin-top: 20px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+    /* Adjust visibility of status messages */
+    .loading, .error, .success {
+      text-align: center;
+      margin-top: 20px;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+    .loading.show, .error.show, .success.show {
+      opacity: 1;
+      visibility: visible;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>PDF Generator</h1>
+    <form id="pdf-form">
+      <label for="url">Enter URL:</label>
+      <input type="url" id="url" name="url" required placeholder="Enter the URL to generate PDF" />
+      <label for="format">Select Format:</label>
+      <select id="format" name="format">
+        <option value="A4">A4</option>
+        <option value="Letter">Letter</option>
+      </select>
+      <button type="submit">Generate PDF</button>
+    </form>
+
+    <div id="result"></div>
+    <div id="loading" class="loading">
+      <p>Generating PDF, please wait...</p>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('pdf-form');
+    const resultDiv = document.getElementById('result');
+    const loadingDiv = document.getElementById('loading');
+    const submitButton = form.querySelector('button');
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      
+      const url = document.getElementById('url').value;
+      const format = document.getElementById('format').value;
+      
+      // Disable button and show loading state
+      submitButton.disabled = true;
+      submitButton.innerText = 'Generating...';
+      resultDiv.innerHTML = '';
+      loadingDiv.classList.add('show'); // Show loading
+
+      try {
+        const response = await fetch('/pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, format })
+        });
+
+        if (response.ok) {
+          const blob = await response.blob();
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = 'generated.pdf';
+          link.click();
+          resultDiv.innerHTML = '<p class="success show">PDF generated successfully!</p>';
+        } else {
+          const error = await response.json();
+          resultDiv.innerHTML = `<p class="error show">Error: ${error.error}</p>`;
+        }
+      } catch (error) {
+        resultDiv.innerHTML = `<p class="error show">Error: ${error.message}</p>`;
+      } finally {
+        // Restore button state and hide loading indicator
+        submitButton.disabled = false;
+        submitButton.innerText = 'Generate PDF';
+        loadingDiv.classList.remove('show'); // Hide loading
+      }
+    });
+  </script>
+</body>
+</html>
