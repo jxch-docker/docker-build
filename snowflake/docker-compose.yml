@@ -6,5 +6,6 @@ services:
     environment:
       DATACENTER_ID: 1           # 数据中心 ID
       WORKER_ID: 1               # 工作节点 ID
-      LOGICAL_CLOCK: "true"  # 是否启用逻辑时钟 (1=启用, 0=禁用)
+      LOGICAL_CLOCK: "true"      # 是否启用逻辑时钟 (1=启用, 0=禁用)
+      BUFFER_CAPACITY: 2000      # 每个号码缓冲池的大小
 
