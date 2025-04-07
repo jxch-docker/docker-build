@@ -5,9 +5,9 @@
 ```yaml
 services:
   snowflake:
-    image: jxch/snowflake  # 使用 jxch/snowflake 镜像
+    image: jxch/snowflake  
     ports:
-      - "5000:8000"  # 将容器内的 5000 端口映射到主机
+      - "5000:8000"  
     environment:
       DATACENTER_ID: 1           # 数据中心 ID
       WORKER_ID: 1               # 工作节点 ID
