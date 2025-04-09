@@ -13,7 +13,7 @@ import (
 	"github.com/sony/sonyflake"
 )
 
-// LockFreeRingBuffer 使用原子操作实现无锁环形缓冲区
+// LockFreeRingBuffer 使用 CAS 实现多生产者、多消费者安全的无锁环形缓冲区
 type LockFreeRingBuffer struct {
 	buffer   []uint64 // 存储数据的数组
 	capacity uint64   // 缓冲区总容量
@@ -33,6 +33,7 @@ func NewLockFreeRingBuffer(capacity uint64) *LockFreeRingBuffer {
 
 // IsFull 判断缓冲区是否已满
 func (rb *LockFreeRingBuffer) IsFull() bool {
+	// 不需要保证精确性，主要用于触发回填逻辑
 	return atomic.LoadUint64(&rb.write)-atomic.LoadUint64(&rb.read) >= rb.capacity
 }
 
@@ -42,51 +43,62 @@ func (rb *LockFreeRingBuffer) IsEmpty() bool {
 }
 
 // Enqueue 尝试写入数据到缓冲区，写入成功返回 true，否则返回 false（缓冲区满）
+// 使用 CAS 方式分配唯一写入位置，确保并发写入时不冲突
 func (rb *LockFreeRingBuffer) Enqueue(item uint64) bool {
-	write := atomic.LoadUint64(&rb.write)
-	read := atomic.LoadUint64(&rb.read)
-	if write-read >= rb.capacity {
-		// 缓冲区已满
-		return false
+	for {
+		write := atomic.LoadUint64(&rb.write)
+		read := atomic.LoadUint64(&rb.read)
+		if write-read >= rb.capacity {
+			// 缓冲区已满
+			return false
+		}
+		// 尝试预定一个写入位置
+		if atomic.CompareAndSwapUint64(&rb.write, write, write+1) {
+			// 写入数据到环形位置
+			rb.buffer[write%rb.capacity] = item
+			return true
+		}
+		// CAS 失败，重试
 	}
-	// 写入数据到环形位置
-	rb.buffer[write%rb.capacity] = item
-	atomic.AddUint64(&rb.write, 1)
-	return true
 }
 
 // Dequeue 从缓冲区取出一个数据，成功返回 (item, true)，否则返回 (0, false)
+// 使用 CAS 方式分配唯一读取位置，确保并发读取时不冲突
 func (rb *LockFreeRingBuffer) Dequeue() (uint64, bool) {
-	read := atomic.LoadUint64(&rb.read)
-	write := atomic.LoadUint64(&rb.write)
-	if read >= write {
-		// 缓冲区为空
-		return 0, false
+	for {
+		read := atomic.LoadUint64(&rb.read)
+		write := atomic.LoadUint64(&rb.write)
+		if read >= write {
+			// 缓冲区为空
+			return 0, false
+		}
+		// 尝试预定读取位置
+		if atomic.CompareAndSwapUint64(&rb.read, read, read+1) {
+			item := rb.buffer[read%rb.capacity]
+			return item, true
+		}
+		// CAS 失败，重试
 	}
-	item := rb.buffer[read%rb.capacity]
-	atomic.AddUint64(&rb.read, 1)
-	return item, true
 }
 
 // DoubleBuffer 使用两个无锁环形缓冲区构成双缓冲设计
 type DoubleBuffer struct {
-	buffers  [2]*LockFreeRingBuffer // 双缓冲数组
-	active   int32                  // 当前活跃缓冲区索引（0 或 1），通过原子操作管理
-	refilling [2]int32              // 每个缓冲区是否正在回填标识 0 - 未回填，1 - 正在回填
-	sf       *sonyflake.Sonyflake   // Sonyflake 发号器实例
-	size     uint64                 // 每个环形缓冲区的容量
-	// refillThreshold 定义当缓冲区内剩余数据低于该阈值时触发回填
-	refillThreshold uint64
+	buffers         [2]*LockFreeRingBuffer // 双缓冲数组
+	active          int32                  // 当前活跃缓冲区索引（0 或 1），使用原子操作管理
+	refilling       [2]int32               // 每个缓冲区是否正在回填标识 0 - 未回填，1 - 正在回填
+	sf              *sonyflake.Sonyflake   // Sonyflake 发号器实例
+	size            uint64                 // 每个环形缓冲区的容量
+	refillThreshold uint64                 // 当缓冲区剩余数据低于该阈值时触发回填
 }
 
 // NewDoubleBuffer 初始化双缓冲区，先同步预填充两个缓冲区，然后后续通过异步回填触发
 func NewDoubleBuffer(size uint64, sf *sonyflake.Sonyflake) *DoubleBuffer {
 	db := &DoubleBuffer{
-		buffers:  [2]*LockFreeRingBuffer{NewLockFreeRingBuffer(size), NewLockFreeRingBuffer(size)},
-		active:   0,
-		sf:       sf,
-		size:     size,
-		refillThreshold: size / 10, // 当剩余数据低于 10% 时触发回填
+		buffers:         [2]*LockFreeRingBuffer{NewLockFreeRingBuffer(size), NewLockFreeRingBuffer(size)},
+		active:          0,
+		sf:              sf,
+		size:            size,
+		refillThreshold: size / 10, // 例如：低于 10% 时触发回填
 	}
 
 	// 同步预填充两个缓冲区
@@ -112,14 +124,14 @@ func (db *DoubleBuffer) syncFillBuffer(idx int) {
 
 // asyncRefillBuffer 异步填充指定缓冲区（如果未在回填中）直到缓冲区满
 func (db *DoubleBuffer) asyncRefillBuffer(idx int) {
-	// 如果已经在回填，则直接返回
+	// 使用 CAS 保证每个缓冲区只有一个回填任务在执行
 	if !atomic.CompareAndSwapInt32(&db.refilling[idx], 0, 1) {
 		return
 	}
 
 	go func() {
 		rb := db.buffers[idx]
-		// 只要缓冲区未满，持续填充
+		// 持续填充直至缓冲区满
 		for !rb.IsFull() {
 			id, err := db.sf.NextID()
 			if err != nil {
@@ -128,7 +140,7 @@ func (db *DoubleBuffer) asyncRefillBuffer(idx int) {
 				continue
 			}
 			if !rb.Enqueue(id) {
-				// 若缓冲区满，退出循环
+				// 若缓冲区满，则退出循环
 				break
 			}
 		}
@@ -141,7 +153,7 @@ func (db *DoubleBuffer) asyncRefillBuffer(idx int) {
 func (db *DoubleBuffer) GetID() uint64 {
 	current := atomic.LoadInt32(&db.active)
 	if id, ok := db.buffers[current].Dequeue(); ok {
-		// 若消费后，剩余数据不足，则异步触发回填
+		// 若消费后, 当前缓冲区剩余数据不足触发异步回填
 		rb := db.buffers[current]
 		if atomic.LoadUint64(&rb.write)-atomic.LoadUint64(&rb.read) < db.refillThreshold {
 			db.asyncRefillBuffer(int(current))
@@ -149,7 +161,7 @@ func (db *DoubleBuffer) GetID() uint64 {
 		return id
 	}
 
-	// 活跃缓冲区没有数据，则切换到备用缓冲区
+	// 当前活跃缓冲区没有数据, 切换备用缓冲区
 	standby := 1 - current
 	atomic.StoreInt32(&db.active, standby)
 	// 异步触发之前活跃缓冲区的回填操作
@@ -158,7 +170,7 @@ func (db *DoubleBuffer) GetID() uint64 {
 	// 等待备用缓冲区有数据
 	for {
 		if id, ok := db.buffers[standby].Dequeue(); ok {
-			// 读取成功后检查备用缓冲区是否需要补充
+			// 若消费后检查备用缓冲区是否需要补充
 			rb := db.buffers[standby]
 			if atomic.LoadUint64(&rb.write)-atomic.LoadUint64(&rb.read) < db.refillThreshold {
 				db.asyncRefillBuffer(int(standby))
@@ -188,7 +200,7 @@ func main() {
 		port = "8080"
 	}
 
-	// 合拼 datacenterID 与 workID 生成唯一机器标识（假定均小于 100）
+	// 合并 datacenterID 与 workID 生成唯一机器标识（这里假定均小于 100）
 	machineID := uint16(datacenterID*100 + workID)
 
 	// 配置 Sonyflake（StartTime 建议使用业务上线时间或相对固定时间）
@@ -215,14 +227,14 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"id": id})
 	})
 
-	// 批量 ID 接口：/ids，默认返回 10 个，最多返回 100 个
+	// 批量 ID 接口：/ids，默认返回 10 个，最多返回 1000 个
 	router.GET("/ids", func(c *gin.Context) {
 		countStr := c.Query("count")
 		count := 10
 		if countStr != "" {
 			if cnt, err := strconv.Atoi(countStr); err == nil && cnt > 0 {
-				if cnt > 100 {
-					count = 100
+				if cnt > 1000 {
+					count = 1000
 				} else {
 					count = cnt
 				}
