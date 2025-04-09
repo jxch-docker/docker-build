@@ -1,0 +1,10 @@
+services:
+  snowflake:
+    image: jxch/snowflake:go
+    ports:
+      - "5000:8080" 
+    environment:
+      DATACENTER_ID: 1           # 数据中心 ID
+      WORK_ID: 1               # 工作节点 ID
+      BUFFER_SIZE: 10000      # 每个号码缓冲池的大小
+
