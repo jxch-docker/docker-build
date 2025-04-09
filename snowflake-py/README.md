@@ -10,9 +10,9 @@ services:
       - "5000:8000"  
     environment:
       DATACENTER_ID: 1           # 数据中心 ID
-      WORKER_ID: 1               # 工作节点 ID
+      WORK_ID: 1               # 工作节点 ID
       LOGICAL_CLOCK: "true"      # 是否启用逻辑时钟 (1=启用, 0=禁用)
-      BUFFER_CAPACITY: 2000      # 每个号码缓冲池的大小
+      BUFFER_SIZE: 2000      # 每个号码缓冲池的大小
 ```
 
 
@@ -21,7 +21,7 @@ services:
 curl --location 'http://localhost:5000/ids' \
 --header 'Content-Type: application/json' \
 --data '{
-    "amount": 1234
+    "count": 1234
 }'
 ```
 

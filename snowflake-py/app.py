@@ -8,9 +8,9 @@ from queue import SimpleQueue, Empty
 load_dotenv()
 
 DATACENTER_ID = int(os.getenv("DATACENTER_ID", "1"))
-WORKER_ID = int(os.getenv("WORKER_ID", "1"))
+WORKER_ID = int(os.getenv("WORK_ID", "1"))
 LOGICAL_CLOCK = os.getenv("LOGICAL_CLOCK", "false").lower() == "true"
-BUFFER_CAPACITY = int(os.getenv("BUFFER_CAPACITY", "2000"))
+BUFFER_CAPACITY = int(os.getenv("BUFFER_SIZE", "2000"))
 
 app = Flask(__name__)
 
@@ -162,10 +162,10 @@ sf = DoubleBufferSnowflake(DATACENTER_ID, WORKER_ID, BUFFER_CAPACITY)
 def get_id():
     return jsonify({"id": sf.next_id()})
 
-@app.route('/ids', methods=['POST'])
+@app.route('/ids', methods=['GET'])
 def get_ids():
-    data = request.get_json()
-    amount = data.get("amount", 1)
+    # 从 URL 查询参数中获取 count，默认值为 1，并自动转换为 int 类型
+    amount = request.args.get("count", default=1, type=int)
     if not isinstance(amount, int) or amount <= 0:
         return jsonify({"error": "Invalid amount"}), 400
     ids = sf.next_ids(amount)

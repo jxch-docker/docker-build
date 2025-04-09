@@ -9,7 +9,7 @@ RUN pip install --upgrade pip && \
 COPY app.py .
 
 ENV DATACENTER_ID=1
-ENV WORKER_ID=1
+ENV WORK_ID=1
 ENV LOGICAL_CLOCK=false
 
 EXPOSE 8000
