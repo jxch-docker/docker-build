@@ -1,8 +1,16 @@
 elasticsearch:
   client:
-    hosts:
-      - http://elasticsearch:9200
+    hosts: ["http://elasticsearch:9200"]
+    request_timeout: 60
+    verify_certs: false         # 非 https 可为 false
+  other_settings:
+    master_only: false
+    skip_version_test: false
+    username: elastic
+    password: password
+
 logging:
   loglevel: INFO
   logfile: /var/log/curator.log
   logformat: default
+  blacklist: []
