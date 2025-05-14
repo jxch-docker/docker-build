@@ -1,0 +1,10 @@
+services:
+  tunnel-server:
+    image: jxch/arthas-tunnel-server
+    restart: always
+    ports:
+      - "7777:7777"
+      - "8080:8080"
+    environment:
+      - ARTHAS_TOKEN=43aaed04-c0a8-41f8-8be0-72df31ebef78 
+      - PASSWORD=43aaed04-c0a8-41f8-8be0-72df31ebef78 
